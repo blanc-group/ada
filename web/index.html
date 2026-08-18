@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADA — Blanc Group</title>
+<style>
+  :root {
+    --bg0: #02070c;
+    --bg1: #061321;
+    --cy: #35e0e6;          /* HUD teal */
+    --cy-dim: rgba(53, 224, 230, .35);
+    --cy-faint: rgba(53, 224, 230, .12);
+    --panel: rgba(6, 20, 30, .72);
+    --text: #cfeef2;
+    --muted: #58848f;
+    --warn: #ffb84d;
+    --off: #ff6a6a;
+    --ok: #47e6a0;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1300px 700px at 50% -15%, #0a2438 0%, transparent 62%),
+      radial-gradient(900px 500px at 85% 110%, #06202f 0%, transparent 55%),
+      linear-gradient(180deg, var(--bg1), var(--bg0) 65%);
+    color: var(--text);
+    font-family: "SF Mono", "Menlo", "Roboto Mono", Consolas, monospace;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+  }
+  /* faint grid overlay */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      linear-gradient(rgba(53,224,230,.03) 1px, transparent 1px) 0 0/100% 44px,
+      linear-gradient(90deg, rgba(53,224,230,.03) 1px, transparent 1px) 0 0/44px 100%;
+  }
+
+  /* ============ TOP BAR ============ */
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 26px 6px; z-index: 2;
+  }
+  #brand { display: flex; align-items: baseline; gap: 14px; }
+  #brand h1 { font-size: 1.05rem; font-weight: 400; letter-spacing: .55em; color: var(--cy); }
+  #brand span { font-size: .58rem; letter-spacing: .3em; color: var(--muted); }
+  #clockbox { text-align: right; }
+  #clock { font-size: 1.25rem; color: var(--cy); letter-spacing: .12em; }
+  #date { font-size: .58rem; letter-spacing: .28em; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+
+  /* ============ MAIN GRID ============ */
+  #main {
+    display: grid; z-index: 2; min-height: 0;
+    grid-template-columns: 250px 1fr 320px;
+    gap: 14px; padding: 8px 22px;
+  }
+  @media (max-width: 980px) { #main { grid-template-columns: 1fr; overflow-y: auto; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--cy-faint);
+    border-radius: 6px; padding: 12px 14px; position: relative;
+    backdrop-filter: blur(6px);
+  }
+  .panel::before, .panel::after {
+    content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
+  }
+  .panel::before { top: -1px; left: -1px; border-top: 1px solid var(--cy-dim); border-left: 1px solid var(--cy-dim); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 1px solid var(--cy-dim); border-right: 1px solid var(--cy-dim); }
+  .panel h3 {
+    font-size: .58rem; letter-spacing: .32em; color: var(--cy);
+    border-bottom: 1px solid var(--cy-faint); padding-bottom: 7px; margin-bottom: 9px;
+    font-weight: 400;
+  }
+
+  /* left column */
+  #left { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+  .kv { display: flex; justify-content: space-between; font-size: .66rem; padding: 3.5px 0; letter-spacing: .06em; }
+  .kv .k { color: var(--muted); }
+  .kv .v { color: var(--text); }
+  .conn { display: flex; align-items: center; gap: 9px; font-size: .64rem; padding: 4.5px 0; letter-spacing: .06em; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--off); box-shadow: 0 0 6px var(--off); flex: none; }
+  .conn.on .dot { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
+  .conn.soon .dot { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .conn .lbl { flex: 1; color: var(--text); }
+  .conn .st { color: var(--muted); font-size: .56rem; letter-spacing: .12em; }
+  .conn.on .st { color: var(--ok); }
+  .conn.soon .st { color: var(--warn); }
+
+  .gauge { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+  .ringg { width: 52px; height: 52px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-size: .6rem; color: var(--cy);
+    background: conic-gradient(var(--cy) calc(var(--p, 0) * 1%), rgba(53,224,230,.10) 0); }
+  .ringg > div { width: 40px; height: 40px; border-radius: 50%; background: #04121c; display: grid; place-items: center; }
+  .gauge .glbl { font-size: .58rem; color: var(--muted); letter-spacing: .18em; line-height: 1.7; }
+
+  /* center */
+  #center { display: grid; grid-template-rows: 1fr auto; min-height: 0; place-items: center; position: relative; }
+  #stage { position: relative; width: 100%; height: 100%; min-height: 260px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #viz { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .spoke {
+    position: absolute; font-size: .56rem; letter-spacing: .26em; color: var(--muted);
+    padding: 4px 8px; border: 1px solid transparent; white-space: nowrap; transition: color .4s, border-color .4s;
+  }
+  .spoke.on { color: var(--cy); border-color: var(--cy-faint); background: rgba(6, 20, 30, .5); }
+  #status {
+    margin: 6px 0 10px; z-index: 2;
+    font-size: .62rem; letter-spacing: .3em; text-indent: .3em; text-transform: uppercase;
+    color: var(--muted); padding: 8px 26px; border: 1px solid var(--cy-faint); border-radius: 3px;
+    background: rgba(4, 14, 22, .7); min-width: 240px; text-align: center;
+  }
+  body.listening #status { color: var(--cy); border-color: var(--cy-dim); }
+  body.speaking #status { color: #d8fbff; border-color: var(--cy); }
+  body.standby #status { color: #6fc9d4; border-color: var(--cy-faint); animation: blinkst 3.2s ease-in-out infinite; }
+  @keyframes blinkst { 50% { opacity: .55; } }
+
+  /* right column */
+  #right { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  #wavewrap { height: 64px; }
+  #wave { width: 100%; height: 40px; display: block; }
+  #console { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #log {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+    padding-right: 4px; scrollbar-width: thin; min-height: 0;
+  }
+  .msg { font-size: .72rem; line-height: 1.55; max-width: 96%; }
+  .msg .who { font-size: .54rem; letter-spacing: .3em; display: block; margin-bottom: 2px; }
+  .msg.user { align-self: flex-end; text-align: right; color: #a9dcff; }
+  .msg.user .who { color: var(--muted); }
+  .msg.ada { align-self: flex-start; color: var(--text); border-left: 2px solid var(--cy); padding-left: 9px; }
+  .msg.ada .who { color: var(--cy); }
+  .msg.sys { align-self: center; text-align: center; color: var(--muted); font-style: italic; font-size: .62rem; }
+
+  /* bottom bar */
+  #bottombar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 26px 12px; z-index: 2;
+    font-size: .56rem; letter-spacing: .22em; color: var(--muted); text-transform: uppercase;
+  }
+  #bottombar b { color: var(--cy); font-weight: 400; }
+
+  /* gate */
+  #gate { position: fixed; inset: 0; z-index: 10; background: rgba(1, 5, 9, .88);
+    backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; }
+  #gate .card { display: flex; flex-direction: column; gap: 14px; align-items: center;
+    background: var(--panel); border: 1px solid var(--cy-faint); padding: 40px 46px; }
+  #gate h2 { font-weight: 300; letter-spacing: .6em; text-indent: .6em; color: var(--cy); font-size: 1.15rem; }
+  #gate p { color: var(--muted); font-size: .68rem; letter-spacing: .12em; }
+  #gate input { background: #030b12; border: 1px solid var(--cy-faint); color: var(--text);
+    padding: 12px 16px; font-size: .95rem; width: 240px; text-align: center; outline: none; font-family: inherit; }
+  #gate input:focus { border-color: var(--cy-dim); }
+  #gate button { background: rgba(53,224,230,.12); color: var(--cy); border: 1px solid var(--cy-dim);
+    padding: 12px 0; width: 240px; cursor: pointer; letter-spacing: .34em; text-indent: .34em;
+    font-size: .72rem; font-family: inherit; }
+  #gate button:hover { background: rgba(53,224,230,.22); }
+  #gate .err { color: var(--off); min-height: 1.2em; font-size: .7rem; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body class="idle">
+  <div id="gate">
+    <div class="card">
+      <h2>A.D.A</h2>
+      <p>ACCESSO RISERVATO · BLANC GROUP</p>
+      <input id="pw" type="password" placeholder="PASSWORD" autocomplete="current-password">
+      <button id="enter">AUTENTICAZIONE</button>
+      <div class="err" id="gate-err"></div>
+    </div>
+  </div>
+
+  <div id="topbar">
+    <div id="brand"><h1>A.D.A</h1><span>ADVANCED DESIGN ASSISTANT · BLANC GROUP</span></div>
+    <div id="clockbox"><div id="clock">--:--:--</div><div id="date">—</div></div>
+  </div>
+
+  <div id="main">
+    <div id="left">
+      <div class="panel">
+        <h3>SISTEMA</h3>
+        <div class="kv"><span class="k">NUCLEO</span><span class="v" id="s-core">STANDBY</span></div>
+        <div class="kv"><span class="k">MODELLO</span><span class="v" id="s-model">—</span></div>
+        <div class="kv"><span class="k">VOCE</span><span class="v" id="s-voice">—</span></div>
+        <div class="kv"><span class="k">STRUMENTI</span><span class="v" id="s-tools">0</span></div>
+      </div>
+      <div class="panel">
+        <h3>CONNETTORI</h3>
+        <div id="connectors"></div>
+      </div>
+      <div class="panel">
+        <h3>DIAGNOSTICA</h3>
+        <div class="gauge"><div class="ringg" id="g-mic"><div><span id="g-mic-v">0%</span></div></div><div class="glbl">INGRESSO<br>MICROFONO</div></div>
+        <div class="gauge"><div class="ringg" id="g-out"><div><span id="g-out-v">0%</span></div></div><div class="glbl">USCITA<br>VOCALE</div></div>
+      </div>
+    </div>
+
+    <div id="center">
+      <div id="stage" title="Tocca il nucleo per attivare/disattivare">
+        <canvas id="viz"></canvas>
+      </div>
+      <div id="status">In attesa</div>
+    </div>
+
+    <div id="right">
+      <div class="panel" id="wavewrap">
+        <h3>ANALISI AUDIO</h3>
+        <canvas id="wave"></canvas>
+      </div>
+      <div class="panel" id="console">
+        <h3>CONSOLE · CONVERSAZIONE</h3>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bottombar">
+    <span>BLANC GROUP · TAROLOGIA EVOLUTIVA · BAR N'AUT</span>
+    <span id="hint">DI’ <b>«EHI ADA»</b> · «VAI IN STANDBY» PER SOSPENDERE · CLICK SUL NUCLEO = MANUALE</span>
+  </div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const state = {
+    ws: null, ctxIn: null, ctxOut: null, stream: null, analyser: null,
+    playCursor: 0, sources: [], active: false, speakTimer: null, turnBreak: false,
+    micLevel: 0, outLvl: 0,
+    standby: false, recog: null, pendingActivate: false, lastActivity: 0,
+  };
+
+  const setStatus = t => { $('status').textContent = t; };
+  const setMode = m => { document.body.className = m; };
+
+  /* ---------- wake word ("Ehi Ada") ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const WAKE_RE = /\b(ehi|hey|ei|ok|okay)[\s,]*ada\b|\bada\b[\s,]*(ci sei|attivati|sveglia)/i;
+  const SLEEP_RE = /\b(vai in standby|spegniti|a riposo|riposati|buonanotte ada)\b/i;
+
+  function beep(freq, dur) {
+    try {
+      const c = new AudioContext();
+      const o = c.createOscillator(), gn = c.createGain();
+      o.frequency.value = freq; o.type = 'sine';
+      gn.gain.setValueAtTime(0.12, c.currentTime);
+      gn.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+      o.connect(gn); gn.connect(c.destination);
+      o.start(); o.stop(c.currentTime + dur);
+      setTimeout(() => c.close(), dur * 1000 + 150);
+    } catch (_) {}
+  }
+
+  function startStandby() {
+    if (state.standby || state.active) return;
+    if (!SR) {
+      setStatus('Attivazione vocale non supportata — usa il click');
+      return;
+    }
+    state.standby = true;
+    setMode('standby');
+    setStatus('Standby — di’ «Ehi Ada»');
+    const r = new SR();
+    state.recog = r;
+    r.lang = 'it-IT';
+    r.continuous = true;
+    r.interimResults = true;
+    r.onresult = ev => {
+      let heard = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) heard += ev.results[i][0].transcript + ' ';
+      if (WAKE_RE.test(heard)) {
+        stopStandby();
+        beep(880, 0.18);
+        const pw = localStorage.getItem('ada_pw');
+        if (pw) { state.pendingActivate = true; connect(pw); }
+        else $('gate').classList.remove('hidden');
+      }
+    };
+    r.onend = () => { if (state.standby) { try { r.start(); } catch (_) {} } };
+    r.onerror = e => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        state.standby = false;
+        setStatus('Microfono negato — permessi browser');
+      }
+    };
+    try { r.start(); } catch (_) {}
+  }
+
+  function stopStandby() {
+    state.standby = false;
+    if (state.recog) { try { state.recog.onend = null; state.recog.stop(); } catch (_) {} state.recog = null; }
+  }
+
+  function toStandby(reason) {
+    if (reason) logLine('sys', reason, 'sys');
+    stopAll();
+    beep(440, 0.15);
+    startStandby();
+  }
+
+  // auto-standby after prolonged silence
+  setInterval(() => {
+    if (state.active && state.lastActivity && Date.now() - state.lastActivity > 120000) {
+      toStandby('Standby automatico per inattività.');
+    }
+  }, 10000);
+
+  /* ---------- clock ---------- */
+  const DAYS = ['DOMENICA','LUNEDÌ','MARTEDÌ','MERCOLEDÌ','GIOVEDÌ','VENERDÌ','SABATO'];
+  const MONTHS = ['GEN','FEB','MAR','APR','MAG','GIU','LUG','AGO','SET','OTT','NOV','DIC'];
+  setInterval(() => {
+    const d = new Date();
+    $('clock').textContent = d.toLocaleTimeString('it-IT');
+    $('date').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  }, 500);
+
+  /* ---------- connectors ---------- */
+  const CONNECTORS = [
+    { key: 'brain',   label: 'COMPANY BRAIN',      prefix: null },
+    { key: 'ghl',     label: 'CRM · GOHIGHLEVEL',  prefix: 'ghl_' },
+    { key: 'n8n',     label: 'AUTOMAZIONI · N8N',  prefix: 'n8n_' },
+    { key: 'meta',    label: 'ADS · META',          prefix: 'meta_' },
+    { key: 'gcal',    label: 'CALENDARIO · GOOGLE', prefix: 'gcal_' },
+    { key: 'clickup', label: 'TASK · CLICKUP',      prefix: 'clickup_' },
+    { key: 'fin',     label: 'FINANZE · BG',        prefix: 'fin_' },
+  ];
+  function renderConnectors(demo, toolNames) {
+    const box = $('connectors');
+    box.innerHTML = '';
+    for (const c of CONNECTORS) {
+      let cls = '', st = 'OFFLINE';
+      if (c.key === 'brain') {
+        if (!demo) { cls = 'on'; st = 'ONLINE'; }
+      } else if (!demo && toolNames.some(n => n.startsWith(c.prefix))) {
+        cls = 'on'; st = 'ONLINE';
+      } else {
+        cls = 'soon'; st = demo ? 'IN ATTESA' : 'DA COLLEGARE';
+      }
+      if (c.key === 'brain' && demo) { cls = ''; st = 'OFFLINE'; }
+      box.insertAdjacentHTML('beforeend',
+        `<div class="conn ${cls}"><span class="dot"></span><span class="lbl">${c.label}</span><span class="st">${st}</span></div>`);
+    }
+    document.querySelectorAll('.spoke').forEach((el, i) => {
+      const c = CONNECTORS[i + 1];
+      if (c && !demo && toolNames.some(n => n.startsWith(c.prefix))) el.classList.add('on');
+    });
+  }
+  renderConnectors(true, []);
+
+  /* ---------- spokes around the core ---------- */
+  const SPOKES = ['CRM', 'AUTOMAZIONI', 'ADS', 'CALENDARIO', 'TASK', 'FINANZE'];
+  const stage = $('stage');
+  SPOKES.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'spoke'; el.textContent = s;
+    const side = i % 2 === 0 ? 'left' : 'right';
+    el.style[side] = '4%';
+    el.style.top = `${18 + Math.floor(i / 2) * 26}%`;
+    stage.appendChild(el);
+  });
+
+  /* ---------- transcript ---------- */
+  function logLine(role, text, cls) {
+    const log = $('log');
+    let last = log.lastElementChild;
+    if (state.turnBreak && role !== 'sys') { state.turnBreak = false; if (last) last.dataset.role = ''; last = null; }
+    if (last && last.dataset.role === role && role !== 'sys') {
+      last.querySelector('.txt').textContent += text;
+    } else {
+      const div = document.createElement('div');
+      div.className = 'msg ' + (cls || role);
+      div.dataset.role = role;
+      div.innerHTML = role === 'sys' ? '<span class="txt"></span>'
+        : `<span class="who">${role === 'ada' ? 'A.D.A' : 'OPERATORE'}</span><span class="txt"></span>`;
+      div.querySelector('.txt').textContent = text;
+      log.appendChild(div);
+    }
+    log.scrollTop = log.scrollHeight;
+  }
+
+  /* ================= PARTICLE CORE ================= */
+  const canvas = $('viz');
+  const g = canvas.getContext('2d');
+  const N = 850, pts = [];
+  for (let i = 0; i < N; i++) {
+    const y = 1 - (i / (N - 1)) * 2;
+    const r = Math.sqrt(1 - y * y);
+    const th = i * 2.399963229728653;
+    pts.push({ x: Math.cos(th) * r, y, z: Math.sin(th) * r, ph: Math.random() * 6.28 });
+  }
+  let rotY = 0, disp = 0, freqData = null;
+  const rotX = -0.3, t0 = performance.now();
+
+  function outLevel() {
+    if (!state.analyser) return 0;
+    if (!freqData) freqData = new Uint8Array(state.analyser.frequencyBinCount);
+    state.analyser.getByteFrequencyData(freqData);
+    let sum = 0;
+    for (let i = 0; i < 48; i++) sum += freqData[i];
+    return Math.min(1, sum / 48 / 140);
+  }
+
+  function draw(now) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+
+    const mode = document.body.className;
+    const calm = mode === 'idle' || mode === 'standby';
+    state.outLvl = mode === 'speaking' ? outLevel() : state.outLvl * 0.9;
+    const level = mode === 'speaking' ? state.outLvl
+                : mode === 'listening' ? Math.min(1, state.micLevel * 2.6) : 0;
+    disp += (level - disp) * 0.18;
+    const t = (now - t0) / 1000;
+    rotY += 0.0022 + disp * 0.006;
+
+    const R = Math.min(w, h) * 0.27;
+    const cx = w / 2, cy = h / 2;
+    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+    const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+
+    // outer HUD rings (arc-reactor)
+    g.strokeStyle = 'rgba(53,224,230,.22)'; g.lineWidth = 1;
+    g.beginPath(); g.arc(cx, cy, R * 1.45, 0, 6.2832); g.stroke();
+    g.strokeStyle = 'rgba(53,224,230,.45)'; g.lineWidth = 2;
+    g.beginPath(); g.arc(cx, cy, R * 1.45, t * 0.5, t * 0.5 + 1.1); g.stroke();
+    g.beginPath(); g.arc(cx, cy, R * 1.45, t * 0.5 + 3.14, t * 0.5 + 4.24); g.stroke();
+    g.strokeStyle = 'rgba(53,224,230,.14)';
+    g.setLineDash([2, 7]); g.lineWidth = 1;
+    g.beginPath(); g.arc(cx, cy, R * 1.62, -t * 0.25, -t * 0.25 + 6.2832); g.stroke();
+    g.setLineDash([]);
+
+    const glow = g.createRadialGradient(cx, cy, 0, cx, cy, R * (1.1 + disp * 0.5));
+    glow.addColorStop(0, `rgba(53, 224, 230, ${calm ? 0.05 : 0.10 + disp * 0.28})`);
+    glow.addColorStop(1, 'rgba(53, 224, 230, 0)');
+    g.fillStyle = glow;
+    g.fillRect(0, 0, w, h);
+
+    g.globalCompositeOperation = 'lighter';
+    const [cr, cg2, cb] = mode === 'idle' ? [105, 128, 140]
+                        : mode === 'standby' ? [70, 160, 175] : [70, 220, 235];
+    for (const p of pts) {
+      const rr = 1 + disp * 0.22 * Math.sin(t * 5 + p.ph * 3);
+      const x = p.x * rr, y = p.y * rr, z = p.z * rr;
+      const x1 = x * cosY + z * sinY, z1 = -x * sinY + z * cosY;
+      const y1 = y * cosX - z1 * sinX, z2 = y * sinX + z1 * cosX;
+      const pr = 1 / (1.6 - z2 * 0.55);
+      const a = Math.max(0, (z2 + 1) / 2);
+      g.fillStyle = `rgba(${cr},${cg2},${cb},${(calm ? 0.15 : 0.10) + a * (calm ? 0.22 : 0.55)})`;
+      g.beginPath();
+      g.arc(cx + x1 * R * pr, cy + y1 * R * pr, (0.5 + a * 1.5) * (1 + disp * 0.4), 0, 6.2832);
+      g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+
+    // gauges + waveform
+    updGauge('g-mic', Math.min(1, state.micLevel * 3));
+    updGauge('g-out', state.outLvl);
+    drawWave();
+    requestAnimationFrame(draw);
+  }
+  function updGauge(id, v) {
+    const el = $(id);
+    el.style.setProperty('--p', Math.round(v * 100));
+    $(id + '-v').textContent = Math.round(v * 100) + '%';
+  }
+  const wave = $('wave'), wg = wave.getContext('2d');
+  function drawWave() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = wave.clientWidth, h = wave.clientHeight;
+    if (!w) return;
+    if (wave.width !== w * dpr) { wave.width = w * dpr; wave.height = h * dpr; }
+    wg.setTransform(dpr, 0, 0, dpr, 0, 0);
+    wg.clearRect(0, 0, w, h);
+    const bars = 48;
+    for (let i = 0; i < bars; i++) {
+      let v = 0;
+      if (freqData && document.body.className === 'speaking') v = freqData[i] / 255;
+      else if (document.body.className === 'listening') v = state.micLevel * (0.4 + 0.6 * Math.random());
+      const bh = Math.max(1.5, v * h);
+      wg.fillStyle = `rgba(53,224,230,${0.25 + v * 0.65})`;
+      wg.fillRect(i * (w / bars) + 1, (h - bh) / 2, w / bars - 2, bh);
+    }
+  }
+  requestAnimationFrame(draw);
+
+  /* ================= AUDIO OUT ================= */
+  function playChunk(buf) {
+    if (!state.ctxOut) return;
+    const i16 = new Int16Array(buf);
+    const f32 = Float32Array.from(i16, v => v / 32768);
+    const audio = state.ctxOut.createBuffer(1, f32.length, 24000);
+    audio.getChannelData(0).set(f32);
+    const src = state.ctxOut.createBufferSource();
+    src.buffer = audio;
+    src.connect(state.analyser);
+    const now = state.ctxOut.currentTime;
+    state.playCursor = Math.max(state.playCursor, now);
+    src.start(state.playCursor);
+    state.playCursor += audio.duration;
+    state.sources.push(src);
+    src.onended = () => { state.sources = state.sources.filter(s => s !== src); };
+    state.lastActivity = Date.now();
+    setMode('speaking');
+    setStatus('A.D.A in risposta');
+    clearTimeout(state.speakTimer);
+    state.speakTimer = setTimeout(() => {
+      if (state.active) { setMode('listening'); setStatus('In ascolto'); }
+    }, Math.max(0, (state.playCursor - now) * 1000) + 250);
+  }
+  function stopPlayback() {
+    state.sources.forEach(s => { try { s.stop(); } catch (_) {} });
+    state.sources = [];
+    state.playCursor = 0;
+    if (state.active) { setMode('listening'); setStatus('In ascolto'); }
+  }
+
+  /* ============ MIC: hardware rate -> 16 kHz PCM16 ============ */
+  const workletCode = `
+    class PcmCapture extends AudioWorkletProcessor {
+      constructor() { super(); this.step = sampleRate / 16000; this.buf = new Float32Array(0); this.pos = 0; }
+      process(inputs) {
+        const ch = inputs[0][0];
+        if (!ch) return true;
+        const merged = new Float32Array(this.buf.length + ch.length);
+        merged.set(this.buf); merged.set(ch, this.buf.length);
+        this.buf = merged;
+        const avail = Math.floor((this.buf.length - 1 - this.pos) / this.step);
+        if (avail >= 1024) {
+          const out = new Int16Array(avail);
+          let level = 0;
+          for (let i = 0; i < avail; i++) {
+            const p = this.pos + i * this.step;
+            const i0 = p | 0, frac = p - i0;
+            const s = this.buf[i0] * (1 - frac) + this.buf[i0 + 1] * frac;
+            out[i] = Math.max(-32768, Math.min(32767, s * 32768));
+            const a = s < 0 ? -s : s;
+            if (a > level) level = a;
+          }
+          this.pos += avail * this.step;
+          const drop = this.pos | 0;
+          this.buf = this.buf.slice(drop);
+          this.pos -= drop;
+          this.port.postMessage({ pcm: out.buffer, level }, [out.buffer]);
+        }
+        return true;
+      }
+    }
+    registerProcessor('pcm-capture', PcmCapture);
+  `;
+
+  async function startMic() {
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    state.ctxIn = new AudioContext();
+    await state.ctxIn.resume();
+    const url = URL.createObjectURL(new Blob([workletCode], { type: 'application/javascript' }));
+    await state.ctxIn.audioWorklet.addModule(url);
+    const src = state.ctxIn.createMediaStreamSource(state.stream);
+    const node = new AudioWorkletNode(state.ctxIn, 'pcm-capture');
+    node.port.onmessage = e => {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) state.ws.send(e.data.pcm);
+      state.micLevel = e.data.level;
+    };
+    src.connect(node);
+  }
+
+  function stopAll() {
+    state.active = false;
+    if (state.ws) { try { state.ws.close(); } catch (_) {} state.ws = null; }
+    if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
+    if (state.ctxIn) { state.ctxIn.close(); state.ctxIn = null; }
+    stopPlayback();
+    if (state.ctxOut) { state.ctxOut.close(); state.ctxOut = null; state.analyser = null; }
+    state.micLevel = 0; state.outLvl = 0;
+    $('s-core').textContent = 'STANDBY';
+    setMode('idle');
+    setStatus('In pausa — tocca il nucleo');
+  }
+
+  /* ================= WEBSOCKET ================= */
+  function connect(password) {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/ws?key=${encodeURIComponent(password)}`);
+    ws.binaryType = 'arraybuffer';
+    state.ws = ws;
+
+    ws.onopen = async () => {
+      $('gate').classList.add('hidden');
+      localStorage.setItem('ada_pw', password);
+      state.ctxOut = new AudioContext();
+      await state.ctxOut.resume();
+      state.analyser = state.ctxOut.createAnalyser();
+      state.analyser.fftSize = 256;
+      state.analyser.connect(state.ctxOut.destination);
+      try {
+        await startMic();
+      } catch (err) {
+        setStatus('Microfono negato — permessi browser');
+        return;
+      }
+      state.active = true;
+      state.lastActivity = Date.now();
+      $('s-core').textContent = 'ATTIVO';
+      setMode('listening');
+      setStatus('In ascolto');
+    };
+
+    ws.onmessage = ev => {
+      if (ev.data instanceof ArrayBuffer) { playChunk(ev.data); return; }
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'ready' || msg.type === 'reconnected') {
+        $('s-model').textContent = (msg.model || '—').replace('gemini-', '').toUpperCase().slice(0, 18);
+        $('s-voice').textContent = (msg.voice || '—').toUpperCase();
+        $('s-tools').textContent = msg.tools;
+        renderConnectors(msg.demo, msg.tool_names || []);
+        if (msg.type === 'ready') logLine('sys', msg.demo
+          ? 'Modalità demo: company brain non collegato.'
+          : `Company brain online — ${msg.tools} strumenti.`, 'sys');
+        else logLine('sys', 'Collegamento ristabilito.', 'sys');
+        if (state.pendingActivate && state.ws) {
+          state.pendingActivate = false;
+          state.ws.send(JSON.stringify({ type: 'activate' }));
+        }
+      }
+      else if (msg.type === 'reconnecting') { logLine('sys', 'Riconnessione al nucleo…', 'sys'); setStatus('Riconnessione'); }
+      else if (msg.type === 'transcript') {
+        state.lastActivity = Date.now();
+        logLine(msg.role, msg.text);
+        if (msg.role === 'user' && SLEEP_RE.test(msg.text)) {
+          setTimeout(() => { if (state.active) toStandby('A riposo, Signore.'); }, 2500);
+        }
+      }
+      else if (msg.type === 'interrupted') stopPlayback();
+      else if (msg.type === 'turn_complete') state.turnBreak = true;
+      else if (msg.type === 'closed') { toStandby('Sessione terminata — torno in standby.'); }
+      else if (msg.type === 'error') logLine('sys', msg.message, 'sys');
+    };
+
+    ws.onclose = ev => {
+      if (ev.code === 4401) {
+        $('gate').classList.remove('hidden');
+        $('gate-err').textContent = 'PASSWORD ERRATA';
+        localStorage.removeItem('ada_pw');
+      } else if (state.active) {
+        toStandby('Connessione persa — torno in standby.');
+      }
+    };
+  }
+
+  $('enter').onclick = () => {
+    const pw = $('pw').value.trim();
+    if (pw) { $('gate-err').textContent = ''; stopStandby(); connect(pw); }
+  };
+  $('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('enter').click(); });
+
+  $('stage').onclick = () => {
+    if (state.active) { toStandby(); return; }
+    const pw = localStorage.getItem('ada_pw');
+    if (pw) { stopStandby(); connect(pw); } else $('gate').classList.remove('hidden');
+  };
+
+  if (localStorage.getItem('ada_pw')) {
+    $('gate').classList.add('hidden');
+    startStandby();
+  }
+})();
+</script>
+</body>
+</html>

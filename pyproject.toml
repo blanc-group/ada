@@ -1,0 +1,17 @@
+[project]
+name = "ada-bridge"
+version = "0.1.0"
+description = "Voice bridge between ADA v2 (Gemini Live) and the Blanc MCP gateway"
+requires-python = ">=3.11"
+dependencies = ["mcp>=1.9"]
+
+[project.optional-dependencies]
+voice = ["google-genai>=1.16", "pyaudio>=0.2.14"]
+web = ["google-genai>=1.16", "fastapi>=0.115", "uvicorn[standard]>=0.34"]
+
+[tool.setuptools]
+packages = ["ada_bridge"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
