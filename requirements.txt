@@ -1,5 +1,5 @@
 # Runtime — bridge core
-mcp>=1.9
+mcp>=1.9,<2
 # Runtime — standalone voice loop (also required by ada_v2 itself)
-google-genai>=1.16
+google-genai>=1.16,<2
 pyaudio>=0.2.14

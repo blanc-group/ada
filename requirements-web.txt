@@ -1,5 +1,5 @@
 # Runtime — web voice interface (no audio hardware needed on the server)
-mcp>=1.9
-google-genai>=1.16
+mcp>=1.9,<2
+google-genai>=1.16,<2
 fastapi>=0.115
 uvicorn[standard]>=0.34
