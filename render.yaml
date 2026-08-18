@@ -1,0 +1,28 @@
+# Blueprint per il deploy su Render (https://render.com) — la strada piu' rapida
+# per avere ADA online senza gestire un server tuo.
+#
+#   1) su Render: New + -> Blueprint -> collega il repo blanc-group/ada
+#   2) imposta i valori dei secret (GEMINI_API_KEY, ADA_WEB_PASSWORD, ecc.)
+#   3) Deploy -> ottieni un URL HTTPS tipo https://ada-voice.onrender.com
+#
+# Nota: il piano free va in sleep quando inattivo (primo caricamento lento).
+services:
+  - type: web
+    name: ada-voice
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: python -m ada_bridge.webapp
+    envVars:
+      - key: PYTHON_VERSION
+        value: '3.11.9'
+      # --- da compilare nella dashboard (sync:false = segreto, non nel repo) ---
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ADA_WEB_PASSWORD
+        sync: false
+      # --- opzionali: collegano ADA al company brain (gateway MCP) ---
+      - key: BLANC_MCP_URL
+        sync: false
+      - key: BLANC_MCP_API_KEY
+        sync: false

@@ -1,0 +1,5 @@
+# Dominio pubblico di ADA. Cambialo impostando ADA_DOMAIN nel file .env,
+# altrimenti si usa ada.blanc-group.it come default.
+{$ADA_DOMAIN:ada.blanc-group.it} {
+	reverse_proxy ada:8000
+}

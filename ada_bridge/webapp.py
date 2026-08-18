@@ -306,10 +306,13 @@ def main() -> None:
     import uvicorn
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    # Port precedence: ADA_WEB_PORT (explicit) > PORT (injected by PaaS hosts
+    # like Render/Railway) > 8000 (local/Docker default).
+    port = os.environ.get("ADA_WEB_PORT") or os.environ.get("PORT") or "8000"
     uvicorn.run(
         create_app(),
         host=os.environ.get("ADA_WEB_HOST", "0.0.0.0"),
-        port=int(os.environ.get("ADA_WEB_PORT", "8000")),
+        port=int(port),
     )
 
 

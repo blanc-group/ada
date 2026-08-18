@@ -1,0 +1,38 @@
+# Deploy di ADA su un server (VPS) con HTTPS automatico.
+#
+#   1) sul server: git clone del repo, poi copia .env.example in .env e compilalo
+#   2) punta un record DNS  A  ada.blanc-group.it -> IP del server
+#   3) da questa cartella:  docker compose up -d --build
+#
+# Caddy ottiene da solo il certificato HTTPS da Let's Encrypt e fa da proxy
+# verso il container di ADA. I WebSocket (audio) passano senza configurazione.
+
+services:
+  ada:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    env_file: ../.env # GEMINI_API_KEY, ADA_WEB_PASSWORD, (opz.) BLANC_MCP_*
+    environment:
+      ADA_WEB_PORT: '8000'
+    expose:
+      - '8000' # raggiungibile solo dalla rete interna, non da Internet
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    depends_on:
+      - ada
+    env_file: ../.env # per ADA_DOMAIN (default: ada.blanc-group.it)
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
