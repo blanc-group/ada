@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-DEFAULT_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+DEFAULT_MODEL = "models/gemini-3.1-flash-live-preview"
 DEFAULT_VOICE = "Charon"  # deep, calm prebuilt voice — closest to a "Jarvis" tone
 DEFAULT_MCP_URL = "http://localhost:3000/mcp"
 DEFAULT_CONFIRMATION_TTL_SECONDS = 120.0
