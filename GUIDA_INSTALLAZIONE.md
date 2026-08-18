@@ -27,10 +27,10 @@ Tempo stimato: 15–20 minuti la prima volta. Le volte successive: 30 secondi.
 
 ## Fase 2 — Scarica ADA
 
-1. Vai sulla pagina GitHub del repository `blanc-group/mcp`.
+1. Vai sulla pagina GitHub del repository `blanc-group/ada`.
 2. Bottone verde **Code** → **Download ZIP**.
 3. Estrai lo ZIP (doppio clic) — ad esempio sulla Scrivania.
-4. La cartella che ci interessa è `mcp/agents/ada-voice-bridge`.
+4. La cartella estratta si chiama `ada-main`: è già la cartella di ADA.
 
 ## Fase 3 — Installa ADA (solo la prima volta)
 
@@ -39,7 +39,7 @@ Windows → scrivi `cmd` → Invio) e incolla, una riga alla volta:
 
 **Mac:**
 ```sh
-cd ~/Desktop/mcp-main/agents/ada-voice-bridge
+cd ~/Desktop/ada-main
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-web.txt
@@ -47,7 +47,7 @@ pip install -r requirements-web.txt
 
 **Windows:**
 ```bat
-cd %USERPROFILE%\Desktop\mcp-main\agents\ada-voice-bridge
+cd %USERPROFILE%\Desktop\ada-main
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements-web.txt
@@ -57,7 +57,7 @@ pip install -r requirements-web.txt
 
 ## Fase 4 — Configura le chiavi
 
-Nella cartella `ada-voice-bridge` c'è un file chiamato `.env.example`:
+Nella cartella `ada-main` c'è un file chiamato `.env.example`:
 
 1. Fanne una copia e rinominala `.env` (solo `.env`, senza `.example`).
 2. Aprila con un editor di testo (TextEdit / Blocco note).
@@ -69,7 +69,7 @@ Nella cartella `ada-voice-bridge` c'è un file chiamato `.env.example`:
 
 ## Fase 5 — Avvia ADA e parlaci
 
-Nel terminale (sempre dentro la cartella `ada-voice-bridge`, con il venv attivo):
+Nel terminale (sempre dentro la cartella `ada-main`, con il venv attivo):
 
 **Mac:**
 ```sh

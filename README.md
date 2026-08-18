@@ -39,7 +39,7 @@ Gemini Live e i tool call al gateway. Per l'uso non tecnico vedi
 [GUIDA_INSTALLAZIONE.md](./GUIDA_INSTALLAZIONE.md); in breve:
 
 ```sh
-cd agents/ada-voice-bridge
+cd ada
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-web.txt
 cp .env.example .env             # compila GEMINI_API_KEY e ADA_WEB_PASSWORD
@@ -62,7 +62,7 @@ tool aziendale). Note:
 Su una macchina con microfono e casse:
 
 ```sh
-cd agents/ada-voice-bridge
+cd ada
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt        # pyaudio richiede portaudio (brew/apt)
 cp .env.example .env                   # compila BLANC_MCP_API_KEY e GEMINI_API_KEY
