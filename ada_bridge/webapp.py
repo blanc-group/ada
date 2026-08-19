@@ -86,7 +86,7 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
         }
 
     @app.get("/selftest")
-    async def selftest(key: str = "", prompt: str = "") -> dict:
+    async def selftest(key: str = "", prompt: str = "", mode: str = "") -> dict:
         # Password-gated one-shot probe of the Gemini Live connection so the
         # exact failure (bad key, wrong model, rejected config, no audio) is
         # visible directly, without digging through logs.
@@ -105,35 +105,62 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
                 model=config.model, config=live_config
             ) as session:
                 info["connected"] = True
-                await session.send_client_content(
-                    turns=types.Content(
-                        role="user",
-                        parts=[
-                            types.Part(text=prompt or "Rispondi dicendo solo: ciao.")
-                        ],
-                    ),
-                    turn_complete=True,
-                )
+                text = prompt or "Rispondi dicendo solo: ciao."
+                errors: list = []
 
-                async def _collect() -> None:
+                async def _drain(single_turn: bool) -> None:
                     nonlocal audio_bytes, transcript
-                    async for response in session.receive():
-                        sc = response.server_content
-                        if not sc:
-                            continue
-                        if sc.model_turn:
-                            for part in sc.model_turn.parts or []:
-                                if part.inline_data and part.inline_data.data:
-                                    audio_bytes += len(part.inline_data.data)
-                        if sc.output_transcription and sc.output_transcription.text:
-                            transcript += sc.output_transcription.text
-                        if sc.turn_complete:
+                    while True:
+                        async for response in session.receive():
+                            sc = response.server_content
+                            if not sc:
+                                continue
+                            if sc.model_turn:
+                                for part in sc.model_turn.parts or []:
+                                    if part.inline_data and part.inline_data.data:
+                                        audio_bytes += len(part.inline_data.data)
+                            if sc.output_transcription and sc.output_transcription.text:
+                                transcript += sc.output_transcription.text
+                            if sc.turn_complete and single_turn:
+                                return
+                        if single_turn:
                             return
 
-                try:
-                    await asyncio.wait_for(_collect(), timeout=20)
-                except asyncio.TimeoutError:
-                    info["timeout"] = True
+                async def _send() -> None:
+                    await session.send_client_content(
+                        turns=types.Content(
+                            role="user", parts=[types.Part(text=text)]
+                        ),
+                        turn_complete=True,
+                    )
+
+                if mode == "pump":
+                    # Reproduce the real WS flow: a downlink task loops on
+                    # session.receive() while a separate coroutine sends the turn
+                    # (exactly what _pump_session does).
+                    async def _down() -> None:
+                        try:
+                            await _drain(single_turn=False)
+                        except Exception as exc:  # noqa: BLE001
+                            errors.append(f"down: {type(exc).__name__}: {exc}")
+
+                    dtask = asyncio.create_task(_down())
+                    await asyncio.sleep(0.5)
+                    try:
+                        await _send()
+                    except Exception as exc:  # noqa: BLE001
+                        errors.append(f"send: {type(exc).__name__}: {exc}")
+                    await asyncio.sleep(12)
+                    dtask.cancel()
+                    with contextlib.suppress(Exception):
+                        await dtask
+                    info["errors"] = errors
+                else:
+                    await _send()
+                    try:
+                        await asyncio.wait_for(_drain(single_turn=True), timeout=20)
+                    except asyncio.TimeoutError:
+                        info["timeout"] = True
             info["ok"] = True
             info["audio_bytes"] = audio_bytes
             info["transcript"] = transcript
