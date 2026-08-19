@@ -104,7 +104,9 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
         return {"events": events}
 
     @app.get("/selftest")
-    async def selftest(key: str = "", prompt: str = "", mode: str = "") -> dict:
+    async def selftest(
+        key: str = "", prompt: str = "", mode: str = "", delay: str = ""
+    ) -> dict:
         # Password-gated one-shot probe of the Gemini Live connection so the
         # exact failure (bad key, wrong model, rejected config, no audio) is
         # visible directly, without digging through logs.
@@ -163,7 +165,7 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
                             errors.append(f"down: {type(exc).__name__}: {exc}")
 
                     dtask = asyncio.create_task(_down())
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(float(delay) if delay else 0.5)
                     try:
                         await _send()
                     except Exception as exc:  # noqa: BLE001
