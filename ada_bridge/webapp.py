@@ -86,7 +86,7 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
         }
 
     @app.get("/selftest")
-    async def selftest(key: str = "") -> dict:
+    async def selftest(key: str = "", prompt: str = "") -> dict:
         # Password-gated one-shot probe of the Gemini Live connection so the
         # exact failure (bad key, wrong model, rejected config, no audio) is
         # visible directly, without digging through logs.
@@ -108,7 +108,9 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
                 await session.send_client_content(
                     turns=types.Content(
                         role="user",
-                        parts=[types.Part(text="Rispondi dicendo solo: ciao.")],
+                        parts=[
+                            types.Part(text=prompt or "Rispondi dicendo solo: ciao.")
+                        ],
                     ),
                     turn_complete=True,
                 )
