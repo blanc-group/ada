@@ -171,6 +171,30 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
             info["error"] = f"{type(exc).__name__}: {exc}"
         return info
 
+    @app.websocket("/wsdebug")
+    async def wsdebug(ws: WebSocket) -> None:
+        # Isolation probe: replies to any client message with a fixed binary
+        # blob, to check whether binary WebSocket frames survive the path
+        # (e.g. an intermediary proxy) independent of Gemini.
+        key = ws.query_params.get("key", "")
+        if not hmac.compare_digest(key.encode(), password.encode()):
+            await ws.accept()
+            await ws.close(code=4401)
+            return
+        await ws.accept()
+        await ws.send_text(json.dumps({"type": "ready"}))
+        try:
+            while True:
+                msg = await ws.receive()
+                if msg.get("type") == "websocket.disconnect":
+                    break
+                await ws.send_bytes(b"\x5a" * 4096)
+                await ws.send_text(json.dumps({"type": "sent_bin", "n": 4096}))
+        except Exception:
+            pass
+        with contextlib.suppress(Exception):
+            await ws.close()
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket) -> None:
         key = ws.query_params.get("key", "")
