@@ -180,6 +180,13 @@ async def _run_session(
             async with client.aio.live.connect(
                 model=config.model, config=live_config
             ) as session:
+                logger.info(
+                    "Gemini Live connected (model=%s, voice=%s, tools=%d, demo=%s)",
+                    config.model,
+                    config.voice,
+                    len(declarations),
+                    bridge is None,
+                )
                 await ws.send_text(
                     json.dumps({"type": "ready" if first else "reconnected", **hello})
                 )
@@ -227,6 +234,7 @@ async def _pump_session(
                 with contextlib.suppress(Exception):
                     payload = json.loads(text)
                     if payload.get("type") == "activate":
+                        logger.info("Activation received from browser (wake word)")
                         await session.send_client_content(
                             turns=types.Content(
                                 role="user",
@@ -273,22 +281,30 @@ async def _handle_response(ws, session, bridge, types, response) -> None:
     content = response.server_content
     if content is not None:
         if content.interrupted:
+            logger.info("Gemini: turn interrupted (barge-in)")
             await ws.send_text(json.dumps({"type": "interrupted"}))
         if content.model_turn:
+            audio_bytes = 0
             for part in content.model_turn.parts or []:
                 if part.inline_data and part.inline_data.data:
+                    audio_bytes += len(part.inline_data.data)
                     await ws.send_bytes(part.inline_data.data)
+            if audio_bytes:
+                logger.info("Gemini -> browser: %d audio bytes", audio_bytes)
         for role, transcript in (
             ("ada", content.output_transcription),
             ("user", content.input_transcription),
         ):
             if transcript and transcript.text:
+                if role == "ada":
+                    logger.info("Gemini transcript: %s", transcript.text)
                 await ws.send_text(
                     json.dumps(
                         {"type": "transcript", "role": role, "text": transcript.text}
                     )
                 )
         if content.turn_complete:
+            logger.info("Gemini: turn complete")
             await ws.send_text(json.dumps({"type": "turn_complete"}))
 
     if response.tool_call and bridge is not None:
