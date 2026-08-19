@@ -16,11 +16,13 @@ on HTTPS (or localhost), so put a TLS reverse proxy (Caddy) in front in prod.
 from __future__ import annotations
 
 import asyncio
+import collections
 import contextlib
 import hmac
 import json
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -36,6 +38,13 @@ logger = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 SEND_MIME = "audio/pcm;rate=16000"
 MAX_CONSECUTIVE_FAILURES = 3
+
+# In-memory diagnostic trace of the real WS session, readable via /debugevents.
+_EVENTS: "collections.deque[str]" = collections.deque(maxlen=300)
+
+
+def _ev(msg: str) -> None:
+    _EVENTS.append(f"{time.strftime('%H:%M:%S')} {msg}")
 
 
 class _SessionClosed(Exception):
@@ -84,6 +93,15 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
             "demo": bridge is None,
             "tools": len(bridge.declarations) if bridge else 0,
         }
+
+    @app.get("/debugevents")
+    async def debugevents(key: str = "", clear: int = 0) -> dict:
+        if not hmac.compare_digest(key.encode(), password.encode()):
+            return {"error": "unauthorized"}
+        events = list(_EVENTS)
+        if clear:
+            _EVENTS.clear()
+        return {"events": events}
 
     @app.get("/selftest")
     async def selftest(key: str = "", prompt: str = "", mode: str = "") -> dict:
@@ -300,12 +318,14 @@ async def _run_session(
                 await ws.send_text(
                     json.dumps({"type": "ready" if first else "reconnected", **hello})
                 )
+                _ev(f"run: connected + {'ready' if first else 'reconnected'} sent")
                 first = False
                 failures = 0
                 await _pump_session(ws, session, bridge, types)
         except WebSocketDisconnect:
             raise
         except Exception as exc:
+            _ev(f"run: live error {type(exc).__name__}: {exc}")
             logger.warning("Live session error: %s", exc)
 
         # Gemini side ended: reconnect transparently, with a cap so a broken
@@ -341,10 +361,14 @@ async def _pump_session(
             text = message.get("text")
             if text:
                 # Control messages from the page (e.g. wake-word activation).
-                with contextlib.suppress(Exception):
+                try:
                     payload = json.loads(text)
-                    if payload.get("type") == "activate":
-                        logger.info("Activation received from browser (wake word)")
+                except Exception:
+                    payload = {}
+                if payload.get("type") == "activate":
+                    _ev("uplink: activate received")
+                    logger.info("Activation received from browser (wake word)")
+                    try:
                         await session.send_client_content(
                             turns=types.Content(
                                 role="user",
@@ -362,17 +386,24 @@ async def _pump_session(
                             ),
                             turn_complete=True,
                         )
+                        _ev("uplink: send_client_content OK")
+                    except Exception as exc:
+                        _ev(f"uplink: send ERROR {type(exc).__name__}: {exc}")
+                        logger.warning("activate send failed: %s", exc)
 
     async def downlink() -> None:
+        _ev("downlink: receive loop start")
         try:
             # session.receive() completes at every turn boundary; loop so the
             # Live session survives across turns.
             while True:
                 async for response in session.receive():
                     await _handle_response(ws, session, bridge, types, response)
+                _ev("downlink: turn iterator ended, looping")
         except WebSocketDisconnect:
             raise
         except Exception as exc:
+            _ev(f"downlink: error {type(exc).__name__}: {exc}")
             raise _SessionClosed from exc
 
     try:
@@ -400,6 +431,7 @@ async def _handle_response(ws, session, bridge, types, response) -> None:
                     audio_bytes += len(part.inline_data.data)
                     await ws.send_bytes(part.inline_data.data)
             if audio_bytes:
+                _ev(f"downlink: relayed {audio_bytes} audio bytes to ws")
                 logger.info("Gemini -> browser: %d audio bytes", audio_bytes)
         for role, transcript in (
             ("ada", content.output_transcription),
