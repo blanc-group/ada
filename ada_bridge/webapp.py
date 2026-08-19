@@ -152,8 +152,10 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
                         errors.append(f"send: {type(exc).__name__}: {exc}")
                     await asyncio.sleep(12)
                     dtask.cancel()
-                    with contextlib.suppress(Exception):
+                    try:
                         await dtask
+                    except (asyncio.CancelledError, Exception):
+                        pass
                     info["errors"] = errors
                 else:
                     await _send()
