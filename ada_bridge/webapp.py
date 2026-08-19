@@ -85,6 +85,61 @@ def create_app(config: BridgeConfig | None = None) -> FastAPI:
             "tools": len(bridge.declarations) if bridge else 0,
         }
 
+    @app.get("/selftest")
+    async def selftest(key: str = "") -> dict:
+        # Password-gated one-shot probe of the Gemini Live connection so the
+        # exact failure (bad key, wrong model, rejected config, no audio) is
+        # visible directly, without digging through logs.
+        if not hmac.compare_digest(key.encode(), password.encode()):
+            return {"ok": False, "error": "unauthorized"}
+        from google import genai
+        from google.genai import types
+
+        info: dict = {"model": config.model, "voice": config.voice, "connected": False}
+        try:
+            live_config = _build_live_config(config, [], types)
+            client = genai.Client(api_key=config.gemini_api_key)
+            audio_bytes = 0
+            transcript = ""
+            async with client.aio.live.connect(
+                model=config.model, config=live_config
+            ) as session:
+                info["connected"] = True
+                await session.send_client_content(
+                    turns=types.Content(
+                        role="user",
+                        parts=[types.Part(text="Rispondi dicendo solo: ciao.")],
+                    ),
+                    turn_complete=True,
+                )
+
+                async def _collect() -> None:
+                    nonlocal audio_bytes, transcript
+                    async for response in session.receive():
+                        sc = response.server_content
+                        if not sc:
+                            continue
+                        if sc.model_turn:
+                            for part in sc.model_turn.parts or []:
+                                if part.inline_data and part.inline_data.data:
+                                    audio_bytes += len(part.inline_data.data)
+                        if sc.output_transcription and sc.output_transcription.text:
+                            transcript += sc.output_transcription.text
+                        if sc.turn_complete:
+                            return
+
+                try:
+                    await asyncio.wait_for(_collect(), timeout=20)
+                except asyncio.TimeoutError:
+                    info["timeout"] = True
+            info["ok"] = True
+            info["audio_bytes"] = audio_bytes
+            info["transcript"] = transcript
+        except Exception as exc:  # noqa: BLE001 - report any failure verbatim
+            info["ok"] = False
+            info["error"] = f"{type(exc).__name__}: {exc}"
+        return info
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket) -> None:
         key = ws.query_params.get("key", "")
